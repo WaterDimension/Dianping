@@ -1,15 +1,24 @@
 package com.hmdp.utils;
 
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
 import org.springframework.core.annotation.Order;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static com.hmdp.utils.RedisConstants.*;
 /*
  * <p>
  * 校验登陆拦截器
@@ -17,25 +26,25 @@ import javax.servlet.http.HttpSession;
  */
 
 public class LoginInterceptor implements HandlerInterceptor {
+
+    //不是spring对象
+    private StringRedisTemplate stringRedisTemplate;
+
+    //利用有参构造
+    public LoginInterceptor(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        //前置中 1.获取session
-        HttpSession session = request.getSession();
-
-        //2. 获取session中的用户
-        UserDTO userDTO = (UserDTO) session.getAttribute("user");
-
-        //3.判断用户是否存在
-        if(userDTO == null) {
-            //4.不存在，拦截,返回状态码
+        //1.判断是否需要拦截（Threadlocal中有用户）
+        if (UserHolder.getUser() == null) {
+            //设置状态码
             response.setStatus(401);
+            //拦截
             return false;
         }
-
-        //5.存在，放到Threadlocal
-        UserHolder.saveUser(userDTO);
-        System.out.println("nihaonihao!!!!!!!");
-        //6.放行
+        //有用户，放行
         return true;
     }
 
