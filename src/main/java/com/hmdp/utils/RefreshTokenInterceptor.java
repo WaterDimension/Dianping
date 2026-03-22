@@ -56,7 +56,7 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
 
         //6.存在，放到Threadlocal
         UserHolder.saveUser(userDTO);
-        System.out.println("user已存储到：threadlocal");
+        System.out.println("user已存储到：threadlocal\n刷新token有效期");
 
         //7.刷新token有效期, 每次用到拦截器都刷新
         stringRedisTemplate.expire(tokenKey, LOGIN_USER_TTL, TimeUnit.MINUTES);
