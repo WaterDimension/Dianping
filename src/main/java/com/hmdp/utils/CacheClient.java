@@ -88,6 +88,7 @@ public class CacheClient {
         LocalDateTime expireTime = redisData.getExpireTime();
 
         //5.判断是否过期
+        //热点key问题，一般expiretime是提前写好的，不会存在null
         if (expireTime.isAfter(LocalDateTime.now())) {
             //5.1未过期
             return r;

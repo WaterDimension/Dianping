@@ -3,14 +3,20 @@ package com.hmdp.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Voucher;
+import com.hmdp.entity.VoucherOrder;
+import com.hmdp.mapper.SeckillVoucherMapper;
 import com.hmdp.mapper.VoucherMapper;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.service.ISeckillVoucherService;
+import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.service.IVoucherService;
+import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.UserHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -23,9 +29,14 @@ import java.util.List;
  */
 @Service
 public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> implements IVoucherService {
-
+    @Resource
+    private ISeckillVoucherService seckillService;
     @Resource
     private ISeckillVoucherService seckillVoucherService;
+    @Resource
+    private RedisIdWorker redisIdWorker;
+    @Resource
+    private IVoucherOrderService voucherOrderService;
 
     @Override
     public Result queryVoucherOfShop(Long shopId) {
@@ -48,4 +59,6 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         seckillVoucher.setEndTime(voucher.getEndTime());
         seckillVoucherService.save(seckillVoucher);
     }
+
+
 }
