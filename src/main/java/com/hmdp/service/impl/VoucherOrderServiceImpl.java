@@ -8,8 +8,10 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private IVoucherOrderService voucherOrderService;
     @Resource
     private ISeckillVoucherService seckillService;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
 
     @Override
@@ -56,20 +60,37 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
         //5.一人一单
         Long userId = UserHolder.getUser().getId();
-        //保证事务提交存入db后，再释放锁，才能确保线程安全
-        synchronized (userId.toString().intern()) {
+    //保证事务提交存入db后，再释放锁，才能确保线程安全
+        //这里是包装类对象，这里需要的是值一样，toString返回的是地址,
+        // intern去字符串常量池里找：如果池中已经有 "1001" → 直接返回池中的对象，如果没有 → 把 "1001" 放进池，再返回
+        //这使得同一个用户，不管new多少对象，
+        //不同用户，就不会被锁定
+//        synchronized (userId.toString().intern()) {
+//            IVoucherOrderService proxy = (IVoucherOrderService)AopContext.currentProxy();
+//            return proxy.creatVoucherOrder(voucherId);
+//        }
+        //redis分布式锁: 自己创建锁释放锁, setnx实现互斥
+        //创建锁对象
+        SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order:" + userId);
+        boolean isLock = lock.tryLock(120);  //超时自动释放
+        if (!isLock) {
+            //获取锁失败， 返回错误或重试
+            return Result.fail("一个人只允许下一单");
+        }
+        //获取成功，
+        try {
+            //事务，获取代理对象
             IVoucherOrderService proxy = (IVoucherOrderService)AopContext.currentProxy();
             return proxy.creatVoucherOrder(voucherId);
+        } finally {
+            lock.unlock();
         }
     }
 
     @Transactional
     public Result creatVoucherOrder(Long voucherId) {
 
-        //这里是包装类对象，这里需要的是值一样，toString返回的是地址,
-        // intern去字符串常量池里找：如果池中已经有 "1001" → 直接返回池中的对象，如果没有 → 把 "1001" 放进池，再返回
-        //这使得同一个用户，不管new多少对象，
-        //不同用户，就不会被锁定
+
             //5.一人一单
             Long userId = UserHolder.getUser().getId();
             //5.1查询订单
@@ -102,6 +123,5 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             voucherOrderService.save(voucherOrder);
             //返回订单id
             return Result.ok(orderId);
-
     }
 }
