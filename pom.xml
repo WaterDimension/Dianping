@@ -53,9 +53,15 @@
             <artifactId>mybatis-plus-boot-starter</artifactId>
             <version>3.4.3</version>
         </dependency>
+        <!--让 Spring AOP 能生效 → 让你能获取事务代理对象 → 让分布式锁 + 事务 安全运行-->
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjweaver</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.13.6</version>
         </dependency>
         <!--hutool-->
         <dependency>

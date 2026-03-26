@@ -54,7 +54,7 @@ public class SimpleRedisLock implements ILock {
 //    @Override
 //    public void unlock() {
 //        //获取线程标识:UUID + 线程Id
-//        String threadId = Thread.currentThread().getId() + ID_PREFIX;
+//        String   = Thread.currentThread().getId() + ID_PREFIX;
 //        //获取锁中的标识
 //        String threadValue = stringRedisTemplate.opsForValue().get(KEY_PREFIX + threadId);
 //        //一致才释放锁,解决了锁误删

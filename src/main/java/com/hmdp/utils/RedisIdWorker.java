@@ -1,6 +1,5 @@
 package com.hmdp.utils;
 
-import cn.hutool.core.lang.Snowflake;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
