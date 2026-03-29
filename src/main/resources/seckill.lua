@@ -4,7 +4,7 @@ local voucherId = ARGV[1]
 --    用户id
 local userId = ARGV[2]
 ----    订单id
---local orderId = ARGV[3]
+local orderId = ARGV[3]
 
 -- 2数据key
 --  库存key
@@ -14,7 +14,7 @@ local orderKey = 'seckill:order:' .. voucherId
 
 -- 3.脚本业务
     -- 3.1判断库存是否充足
-if (tonumber((reids.call('get', stockKey)) <= 0)) then
+if (tonumber(redis.call('get', stockKey)) <= 0) then
     -- 库存不足
     return 1
 end
@@ -29,5 +29,5 @@ redis.call('incrby', stockKey, -1)
 redis.call('sadd', orderKey, userId)
 
 ----  3.5有资格， 发送消息到队列中  xadd stream.orders * k1 v1 k2 v2 ...
---redis.call('xadd', 'stream.orders', "*", userId, )
+redis.call('xadd', 'stream.orders', "*", "userId", userId, "voucherId", voucherId, "id", orderId)   --orderId方便存入VoucherOrder表中，字段名对应
 return 0
