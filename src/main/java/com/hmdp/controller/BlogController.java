@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import java.util.List;
 
+import static com.baomidou.mybatisplus.core.toolkit.Wrappers.query;
+
 /**
  * <p>
  * 前端控制器
@@ -75,5 +77,17 @@ public class BlogController {
     public Result qureyBlogLikes(@PathVariable("id") Long id) {
         return blogService.queryBlogLikesById(id);
     }
+    //根据用户id查blog
+    @GetMapping("of/user")
+    public Result queryBlogByUserId(
+            @RequestParam(value = "current", defaultValue = "1") Integer current,
+            @RequestParam("id") Long id) {
+        Page<Blog> page = blogService.query()
+                .eq("user_id", id).eq("id", id).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+        //获取当前页
+        List<Blog> records = page.getRecords();
+        return Result.ok(records);
+    }
+
 
 }
