@@ -206,59 +206,53 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         return Result.ok(blog.getId());
     }
 
-    //每次最大值都是通过前端传递：因为是当前时间currentTime
-    @Override
-    public Result queryBlogOfFollow(Long maxTime, Integer offset) {
-        // 1.获取当前用户
-        Long UserId = UserHolder.getUser().getId();
-        // 2.查询收件箱 zrevrangebyscore key maxTime minTime withscores limit offset, count
-        String key = FEED_KEY + UserId;
-        Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet()
-                .reverseRangeByScoreWithScores(key, maxTime, 0, offset, 2);
-        // 3.解析收件箱：blogId, 时间戳score、 offset
-        //非空判断
-        if (typedTuples.isEmpty() || typedTuples == null) {
-            return Result.ok(Collections.emptyList());
-        }
 
-        List<Long> ids = new ArrayList<>(typedTuples.size());
-        long minTime = 0;
-        int repeatOffset = 1;  //和分数值相同的最小值最少有一个
-        for (ZSetOperations.TypedTuple<String> typedTuple : typedTuples) {
-            // 获取id
-            String idStr = typedTuple.getValue();
-            Long id = Long.valueOf(idStr);
-            ids.add(id);
-            //获取score
-            long time = typedTuple.getScore().longValue();
-            if (time == minTime) {
-                repeatOffset ++;
-            }else {
-                minTime = time;
-                repeatOffset = 1;
-            }
-        }
-        // 4.根据id查询blog
-        List<Blog> blogs = listByIds(ids);
-        // 手动排序，保证和Redis顺序一致
-        blogs.sort(Comparator.comparingInt(b -> ids.indexOf(b.getId())));
-//
-//        String idStr = StrUtil.join(",", ids);
-//        List<Blog> blogs = query().in("id", ids).last("ORDER BY FIELD(id," + idStr + ")").list();
-
-        for (Blog blog : blogs) {
-            // 2. 给 blog 填充 用户昵称、头像
-            queryBlogUser(blog);
-
-            // 3. 给 blog 填充 是否点赞（直接修改原对象）
-            isBlogLiked(blog);
-        }
-
-        // 5.封装并返回blog数据
-        ScrollResult r = new ScrollResult();
-        r.setList(blogs);
-        r.setOffset(repeatOffset);  //最后记录的时间score中，要跳过多少条数据
-        r.setMinTime(minTime);
-        return Result.ok(r);
+@Override
+public Result queryBlogOfFollow(Long max, Integer offset) {
+    // 1.获取当前用户
+    Long userId = UserHolder.getUser().getId();
+    // 2.查询收件箱 ZREVRANGEBYSCORE key Max Min LIMIT offset count
+    String key = FEED_KEY + userId;
+    Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet()
+            .reverseRangeByScoreWithScores(key, 0, max, offset, 2);
+    // 3.非空判断
+    if (typedTuples == null || typedTuples.isEmpty()) {
+        return Result.ok();
     }
+    // 4.解析数据：blogId、minTime（时间戳）、offset
+    List<Long> ids = new ArrayList<>(typedTuples.size());
+    long minTime = 0; // 2
+    int os = 1; // 2
+    for (ZSetOperations.TypedTuple<String> tuple : typedTuples) { // 5 4 4 2 2
+        // 4.1.获取id
+        ids.add(Long.valueOf(tuple.getValue()));
+        // 4.2.获取分数(时间戳）
+        long time = tuple.getScore().longValue();
+        if(time == minTime){
+            os++;
+        }else{
+            minTime = time;
+            os = 1;
+        }
+    }
+    os = minTime == max ? os : os + offset;
+    // 5.根据id查询blog
+    String idStr = StrUtil.join(",", ids);
+    List<Blog> blogs = query().in("id", ids).last("ORDER BY FIELD(id," + idStr + ")").list();
+
+    for (Blog blog : blogs) {
+        // 5.1.查询blog有关的用户
+        queryBlogUser(blog);
+        // 5.2.查询blog是否被点赞
+        isBlogLiked(blog);
+    }
+
+    // 6.封装并返回
+    ScrollResult r = new ScrollResult();
+    r.setList(blogs);
+    r.setOffset(os);
+    r.setMinTime(minTime);
+
+    return Result.ok(r);
+}
 }
