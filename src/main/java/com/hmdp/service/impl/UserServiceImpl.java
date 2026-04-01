@@ -13,15 +13,20 @@ import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RegexUtils;
+import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -102,12 +107,71 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         //4.3存储
         String tokenKey = LOGIN_USER_KEY + token;
         //java.lang.ClassCastException: java.lang.Long cannot be cast to java.lang.String
-        //TODO 确保userMap的每个属性都变成string类型  stringredis extends redistemplate<string,string>
+        //NOTE 确保userMap的每个属性都变成string类型  stringredis extends redistemplate<string,string>
         stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
         //4.4设置token有效期
         stringRedisTemplate.expire(tokenKey, LOGIN_USER_TTL, TimeUnit.MINUTES);
 
         return Result.ok(token);
+    }
+
+    @Override
+    public Result sign() {
+        // 1.获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        // 2.获取日期
+        LocalDateTime now = LocalDateTime.now();
+        // 3.拼接key
+        String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        String key = USER_SIGN_KEY + userId + keySuffix;
+        // 4.获取今天是本月的第几天
+        int dayOfMonth = now.getDayOfMonth();
+        // 5.写入redis setbit key offset 1/0    offset第一天是0
+        stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
+        return Result.ok();
+    }
+
+    //获取当前的连续签到天数
+    @Override
+    public Result signCount() {
+        // 1.获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        // 2.获取日期
+        LocalDateTime now = LocalDateTime.now();
+        // 3.拼接key
+        String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        String key = USER_SIGN_KEY + userId + keySuffix;
+
+        // 4.获取本月截止到今天的所有签到记录， 返回的是一个十进制的数字
+        int dayOfMonth = now.getDayOfMonth();    //bitfiled sign:3:2026 get u 31 0   获取0~31号的记录
+        List<Long> result = stringRedisTemplate.opsForValue().bitField(
+                key,
+                BitFieldSubCommands.create()
+                        .get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth)).valueAt(0)
+        );
+
+        if (result.isEmpty() || result == null){
+            // 没有任何签到结果
+            return Result.ok(0);
+        }
+
+        int count = 0;
+        Long num = result.get(0);
+        if (num == 0 || num == null){
+            return Result.ok(0);
+        }
+
+        while (true) {
+            if ((num & 1) == 0) {
+                //如果为0， 说明未签到，结束
+                break;
+            }else {
+                count ++;
+            }
+            num >>>= 1;
+        }
+
+        return Result.ok(count);
     }
 
     private User createUserWithPhone(String phone) {
